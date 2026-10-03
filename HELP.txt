@@ -1,0 +1,43 @@
+Vita Launcher Manager v1.7.1
+================================
+
+WHAT IT DOES
+Creates the empty .psvita launcher files Batocera expects for games already
+installed in Vita3K.
+
+NORMAL WORKFLOW
+1. Install a Vita game in Vita3K.
+2. Delete the original installer ZIP after verifying the install, if desired.
+3. In Batocera choose GAME SETTINGS -> UPDATE GAMELISTS.
+4. Missing .psvita launchers are created before Batocera refreshes the list.
+
+SAFETY
+- /userdata/saves/psvita is read-only input to this project.
+- The project does not modify installed Vita3K games, saves, firmware, or ZIPs.
+- Stale-launcher cleanup is OFF by default.
+- Explicit cleanup can delete only zero-byte .psvita files created and tracked by
+  this project after the corresponding TITLE ID is no longer installed.
+
+GUI
+The GUI is optional and uses Batocera's YAD when available.
+- Sync: create missing launcher files now.
+- Preview Cleanup: show what cleanup would change; deletes nothing.
+- Clean Stale: explicit confirmed stale-launcher cleanup.
+- Update Database: optional Internet refresh of fallback game-name data.
+- Diagnostics: creates a copy/paste diagnostic report.
+- View Log: shows recent automatic UPDATE GAMELISTS activity.
+
+IMPORTANT
+The optional online TITLE-ID database is not required. Installed PARAM.SFO
+metadata is the primary game-name source. If GitHub is offline or rate-limited,
+normal launcher generation still works.
+
+DIAGNOSTICS
+/usr/bin/python3 -S /userdata/system/psvita_launcher/psvita_launcher.py support-report
+
+LOG
+/userdata/system/psvita_launcher/psvita_launcher.log
+
+UNINSTALL
+Run uninstall.sh from the release package as root. Existing .psvita launcher
+files are intentionally left in /userdata/roms/psvita.

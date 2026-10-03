@@ -1,0 +1,32 @@
+name: CI
+
+permissions:
+  contents: read
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.9", "3.11", "3.13"]
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Python compile
+        run: python -m py_compile psvita_launcher.py
+      - name: Unit tests
+        run: python -m unittest discover -s tests -v
+      - name: Bash syntax
+        run: |
+          bash -n install.sh
+          bash -n uninstall.sh
+          bash -n psvita_manager.sh
+          bash -n psvita_manager_port.sh
+          bash -n psvita_launcher_service
+          bash -n preupdate-gamelists-psvita-launcher-manager

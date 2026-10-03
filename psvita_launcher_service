@@ -1,0 +1,52 @@
+#!/bin/bash
+# PSVITA_LAUNCHER_MANAGER_SERVICE_V2
+# Batocera user service. It is not a daemon: start only registers the persistent
+# /userdata hook into Batocera's live EmulationStation hook directory.
+set -u
+
+APP_DIR="/userdata/system/psvita_launcher"
+SOURCE_HOOK="$APP_DIR/preupdate-gamelists-psvita-launcher-manager"
+HOOK_DIR="/usr/share/emulationstation/hooks"
+LIVE_HOOK="$HOOK_DIR/preupdate-gamelists-psvita-launcher-manager"
+
+is_ours() {
+    [ -L "$LIVE_HOOK" ] && [ "$(readlink "$LIVE_HOOK" 2>/dev/null || true)" = "$SOURCE_HOOK" ]
+}
+
+case "${1:-}" in
+    start)
+        [ -x "$SOURCE_HOOK" ] || {
+            echo "ERROR: source hook is missing or not executable: $SOURCE_HOOK" >&2
+            exit 1
+        }
+        mkdir -p "$HOOK_DIR" || exit 1
+        if [ -e "$LIVE_HOOK" ] || [ -L "$LIVE_HOOK" ]; then
+            if is_ours; then
+                exit 0
+            fi
+            echo "ERROR: refusing to replace foreign hook: $LIVE_HOOK" >&2
+            exit 1
+        fi
+        ln -s "$SOURCE_HOOK" "$LIVE_HOOK" || exit 1
+        ;;
+    stop)
+        is_ours && rm -f "$LIVE_HOOK"
+        ;;
+    restart|reload)
+        "$0" stop || exit $?
+        "$0" start
+        ;;
+    status)
+        if is_ours; then
+            echo "Vita Launcher Manager UPDATE GAMELISTS hook is registered."
+            exit 0
+        fi
+        echo "Vita Launcher Manager UPDATE GAMELISTS hook is not registered."
+        exit 1
+        ;;
+    *)
+        echo "Usage: $0 {start|stop|restart|reload|status}" >&2
+        exit 1
+        ;;
+esac
+exit 0

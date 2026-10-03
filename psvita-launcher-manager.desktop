@@ -1,0 +1,10 @@
+[Desktop Entry]
+# PSVITA_LAUNCHER_MANAGER_DESKTOP_V2
+Type=Application
+Name=Vita Launcher Manager
+Comment=Manage Batocera PS Vita launcher files
+Exec=/userdata/system/psvita_launcher/psvita_manager.sh
+Icon=applications-games
+Terminal=false
+Categories=Game;Utility;
+StartupNotify=false

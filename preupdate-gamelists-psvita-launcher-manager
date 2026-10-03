@@ -1,0 +1,44 @@
+#!/bin/bash
+# PSVITA_LAUNCHER_MANAGER_HOOK_V2
+# Batocera pre-update-gamelists hook. It intentionally never blocks Batocera's
+# gamelist refresh on a launcher error; failures are recorded for diagnostics.
+set -u
+
+APP_DIR="/userdata/system/psvita_launcher"
+APP="$APP_DIR/psvita_launcher.py"
+LOG="$APP_DIR/psvita_launcher.log"
+LAST_STATUS="$APP_DIR/last_sync_status.txt"
+PYTHON_BIN=$(command -v python3 2>/dev/null || true)
+
+record_status() {
+    code="$1"
+    detail="$2"
+    printf '%s\texit=%s\t%s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$code" "$detail" > "$LAST_STATUS" 2>/dev/null || true
+}
+
+[ -r "$APP" ] || { record_status 127 "backend missing"; exit 0; }
+[ -n "$PYTHON_BIN" ] || { record_status 127 "python3 missing"; exit 0; }
+mkdir -p "$APP_DIR" || exit 0
+
+# Bounded log: active log + one previous log, approximately 2 MiB maximum total.
+if [ -f "$LOG" ]; then
+    SIZE=$(wc -c < "$LOG" 2>/dev/null || echo 0)
+    if [ "${SIZE:-0}" -gt 1048576 ] 2>/dev/null; then
+        mv -f "$LOG" "$LOG.1" 2>/dev/null || true
+    fi
+fi
+
+printf '%s UPDATE GAMELISTS: syncing PS Vita launchers\n' "$(date '+%Y-%m-%d %H:%M:%S')" >> "$LOG"
+set +e
+"$PYTHON_BIN" -S "$APP" sync >> "$LOG" 2>&1
+STATUS=$?
+set -e
+printf '%s UPDATE GAMELISTS: sync exit=%s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$STATUS" >> "$LOG"
+if [ "$STATUS" -eq 0 ]; then
+    record_status 0 "sync completed"
+else
+    record_status "$STATUS" "sync failed; see psvita_launcher.log"
+fi
+
+# Never prevent Batocera from refreshing every other system.
+exit 0
