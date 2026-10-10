@@ -1,4 +1,6 @@
 #!/bin/bash
+# Developed with ChatGPT / Codex AI assistance, directed by dadtrick.
+# See AI_DISCLOSURE.md at the repository root for attribution and test limits.
 # PSVITA_LAUNCHER_MANAGER_PORT_V2
 # EmulationStation Ports launcher for the on-demand GUI.
 set -u

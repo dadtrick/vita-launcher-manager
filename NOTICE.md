@@ -18,6 +18,13 @@ and is not bundled with the release.
 
 ## Design and credits
 
-- **ChatGPT / Codex (OpenAI):** software design and code implementation, developed through collaboration with dadtrick.
+- **ChatGPT / Codex (OpenAI AI tools):** software design and code implementation, developed through collaboration with dadtrick.
 - **dadtrick:** original idea, project direction, time invested, and hands-on testing on their Batocera system.
 
+
+## AI development disclosure
+
+This project's integration code and documentation were developed with AI
+assistance from ChatGPT / Codex (OpenAI), directed by dadtrick. See
+[AI_DISCLOSURE.md](AI_DISCLOSURE.md) for roles and validation limits. Upstream
+projects retain their own authorship and license terms.

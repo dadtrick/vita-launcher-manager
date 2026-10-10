@@ -5,6 +5,17 @@
 A lightweight Batocera utility that creates the empty `.psvita` launcher files
 EmulationStation expects for games already installed in Vita3K.
 
+## AI development disclosure
+
+This project was developed with **ChatGPT / Codex, OpenAI's AI tools**, for
+software design, code generation, debugging, and documentation.
+**dadtrick** supplied the original need and idea, directed the project, invested
+the time, and performed hands-on testing. The code is presented openly as
+AI-developed work; the repository owner's name does not mean every line was
+written by hand.
+
+See [AI_DISCLOSURE.md](AI_DISCLOSURE.md) for attribution and validation limits.
+
 The project is designed around Batocera's documented Vita workflow:
 
 - Vita3K installs titles under `/userdata/saves/psvita/ux0/app/<TITLE ID>`.
@@ -17,8 +28,8 @@ https://wiki.batocera.org/systems:psvita
 
 ## Project status
 
-**Feature complete.** This public release is intended to be useful as-is; there
-is no promised roadmap or support SLA.
+The current release implements the documented launcher workflow and has been
+tested on dadtrick's system. There is no promised roadmap or support SLA.
 
 Tested baseline: **Batocera v43, x86_64**. Batocera currently documents Vita3K
 as x86_64-only. The installer also checks the actual services and gamelist-hook
@@ -42,7 +53,7 @@ this hands-on check. Automated tests cover the patch regression cases.
 
 ## Design and credits
 
-- **ChatGPT / Codex (OpenAI):** software design and code implementation, developed through collaboration with dadtrick.
+- **ChatGPT / Codex (OpenAI AI tools):** software design and code implementation, developed through collaboration with dadtrick.
 - **dadtrick:** original idea, project direction, time invested, and hands-on testing on their Batocera system.
 
 ## Why use it?
@@ -112,8 +123,8 @@ Optional GUI:
 - YAD/GTK. The installer only creates GUI shortcuts when `yad` is actually
   available.
 
-Internet access is **not required for installation or normal syncing**. Network
-access is used only when the user explicitly chooses **Update Database**.
+Internet access is **not required for installation or normal syncing**. Normal syncing is offline by default. Network access is used for **Update
+Database**, or during sync if `auto_update_database` is explicitly enabled.
 
 ## Install
 

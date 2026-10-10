@@ -1,4 +1,6 @@
 #!/bin/bash
+# Developed with ChatGPT / Codex AI assistance, directed by dadtrick.
+# See AI_DISCLOSURE.md at the repository root for attribution and test limits.
 # PSVITA_LAUNCHER_MANAGER_HOOK_V2
 # Batocera pre-update-gamelists hook. It intentionally never blocks Batocera's
 # gamelist refresh on a launcher error; failures are recorded for diagnostics.
