@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.7.2 - Sync and preview fixes
+
+- Failed launcher creation and renaming now report a failed sync while preserving successful partial work.
+- Dry-run sync skips automatic database updates.
+- Launcher tracking and cleanup read the final TITLE-ID suffix, including titles containing other bracketed IDs.
+- Added regression tests and automated release ZIP/checksum publication.
+- dadtrick verified diagnostics and automatic gamelist-hook syncing on Batocera 43.1 / Python 3.12.8 with 1,033 titles, 0 unmatched titles, and 0 failures.
+- Documented ChatGPT / Codex's design and implementation role and dadtrick's idea, direction, time, and hands-on testing.
+
 ## 1.7.1 - Vita Launcher Manager rebrand
 
 - Renamed the public-facing project to **Vita Launcher Manager**.

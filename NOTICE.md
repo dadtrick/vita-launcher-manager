@@ -15,3 +15,9 @@ and licenses that apply to their own software and data.
 The optional title-name database is generated at the user's request from public
 Vita3K compatibility issue metadata. It is not required for launcher creation
 and is not bundled with the release.
+
+## Design and credits
+
+- **ChatGPT / Codex (OpenAI):** software design and code implementation, developed through collaboration with dadtrick.
+- **dadtrick:** original idea, project direction, time invested, and hands-on testing on their Batocera system.
+
