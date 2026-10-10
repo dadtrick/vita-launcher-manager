@@ -1,10 +1,13 @@
 import csv
+import contextlib
+import io
 import importlib.util
 import os
 from pathlib import Path
 import struct
 import tempfile
 import unittest
+from unittest.mock import patch
 import urllib.parse
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -33,6 +36,59 @@ def make_sfo(title_id: str, title: str) -> bytes:
 
 
 class LauncherTests(unittest.TestCase):
+    def test_creation_failure_returns_error_and_tracks_successful_launchers(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            source = root / "source"
+            for title_id in ("PCSE00001", "PCSE00002"):
+                (source / title_id).mkdir(parents=True)
+            config = root / "config.ini"
+            config.write_text(
+                "[paths]\n"
+                + "\n".join(f"{key} = {root / value}" for key, value in {
+                    "source": "source", "output": "output", "database": "db.tsv",
+                    "unknown_log": "unknown.txt", "lock_file": "lock",
+                    "managed_state": "managed.tsv", "title_cache": "cache.tsv",
+                }.items()) + "\n", encoding="utf-8"
+            )
+            original_touch = Path.touch
+
+            def fail_one(path, *args, **kwargs):
+                if "PCSE00001" in path.name:
+                    raise OSError("simulated disk full")
+                return original_touch(path, *args, **kwargs)
+
+            stdout, stderr = io.StringIO(), io.StringIO()
+            with patch("sys.argv", ["psvita_launcher", "sync", "--config", str(config)]), \
+                    patch.object(Path, "touch", fail_one), \
+                    contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(stderr):
+                result = app.main()
+            self.assertEqual(result, 2)
+            self.assertIn("simulated disk full", stderr.getvalue())
+            self.assertIn("Sync failed:", stdout.getvalue())
+            self.assertNotIn("Sync complete:", stdout.getvalue())
+            managed = app.load_managed_state(root / "managed.tsv")
+            self.assertEqual(set(managed), {"PCSE00002"})
+            self.assertTrue((root / "output" / managed["PCSE00002"]).exists())
+
+    def test_rename_failure_preserves_original_and_reports_failure(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            source, output = root / "source", root / "output"
+            (source / "PCSE00001").mkdir(parents=True)
+            output.mkdir()
+            old = output / "Old [PCSE00001].psvita"
+            old.touch()
+            state = root / "managed.tsv"
+            app.write_managed_state(state, {"PCSE00001": old.name})
+            with patch.object(Path, "rename", side_effect=OSError("simulated permission denied")), \
+                    contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()), \
+                    self.assertRaisesRegex(RuntimeError, "1 launcher operation"):
+                app.sync_launchers(source, output, root / "db", root / "unknown", state,
+                                   root / "cache", False, True, True, False, False, False)
+            self.assertTrue(old.exists())
+            self.assertEqual(app.load_managed_state(state), {"PCSE00001": old.name})
+
     def test_long_unicode_filename_respects_name_max(self):
         name = "長いゲーム名™" * 100
         result = app.canonical_launcher_name("PCSE00001", name, True, 255)
@@ -160,3 +216,4 @@ class LauncherTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
