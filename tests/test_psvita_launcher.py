@@ -89,6 +89,49 @@ class LauncherTests(unittest.TestCase):
             self.assertTrue(old.exists())
             self.assertEqual(app.load_managed_state(state), {"PCSE00001": old.name})
 
+    def test_dry_run_skips_database_update_and_preserves_launchers(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            source = root / "source"
+            (source / "PCSE00001").mkdir(parents=True)
+            config = root / "config.ini"
+            config.write_text(
+                "[paths]\n" + "\n".join(f"{key} = {root / value}" for key, value in {
+                    "source": "source", "output": "output", "database": "db.tsv",
+                    "unknown_log": "unknown", "lock_file": "lock",
+                    "managed_state": "managed", "title_cache": "cache",
+                }.items()) + "\n[behavior]\nauto_update_database = true\n", encoding="utf-8"
+            )
+            with patch("sys.argv", ["app", "sync", "--dry-run", "--config", str(config)]), \
+                    patch.object(app, "update_database") as update, \
+                    contextlib.redirect_stdout(io.StringIO()):
+                self.assertEqual(app.main(), 0)
+            update.assert_not_called()
+            for name in ("output", "db.tsv", "unknown", "managed", "cache"):
+                self.assertFalse((root / name).exists())
+
+    def test_bracketed_title_id_in_name_preserves_tracking_and_cleanup(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            source, output = root / "source", root / "output"
+            game = source / "PCSE00001"
+            game.mkdir(parents=True)
+            database = root / "db.tsv"
+            database.write_text("PCSE00001\tExample [PCSB00002]\n", encoding="utf-8")
+            state = root / "managed.tsv"
+            with contextlib.redirect_stdout(io.StringIO()):
+                app.sync_launchers(source, output, database, root / "unknown", state,
+                                   root / "cache", False, False, True, False, False, False)
+            self.assertEqual(set(app.index_existing_launchers(output)), {"PCSE00001"})
+            managed = app.load_managed_state(state)
+            self.assertEqual(set(managed), {"PCSE00001"})
+            game.rmdir()
+            with contextlib.redirect_stdout(io.StringIO()):
+                result = app.sync_launchers(source, output, database, root / "unknown", state,
+                                            root / "cache", False, False, True, False, False, True)
+            self.assertEqual(result[3], 1)
+            self.assertEqual(list(output.glob("*.psvita")), [])
+
     def test_long_unicode_filename_respects_name_max(self):
         name = "長いゲーム名™" * 100
         result = app.canonical_launcher_name("PCSE00001", name, True, 255)

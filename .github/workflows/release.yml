@@ -1,0 +1,55 @@
+name: Release
+
+on:
+  pull_request:
+    paths: [VERSION, .github/workflows/release.yml]
+  push:
+    branches: [main]
+    paths: [VERSION]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.13'
+      - run: bash tools/build-release.sh
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-package
+          path: dist/*
+          if-no-files-found: error
+  publish:
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@v4
+        with:
+          name: release-package
+          path: dist
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_COMMIT: ${{ github.sha }}
+        run: |
+          version=$(cat VERSION)
+          [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || exit 1
+          gh release create "v$version" --target "$RELEASE_COMMIT" \
+            --title "Vita Launcher Manager v$version" --notes-file RELEASE_NOTES.md \
+            "dist/vita-launcher-manager-v$version.zip" \
+            "dist/vita-launcher-manager-v$version.zip.sha256"
