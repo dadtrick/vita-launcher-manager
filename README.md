@@ -131,7 +131,7 @@ Database**, or during sync if `auto_update_database` is explicitly enabled.
 Download the release ZIP, extract it on Batocera, then from SSH or a terminal:
 
 ```bash
-cd /path/to/vita-launcher-manager-v1.7.2
+cd /path/to/vita-launcher-manager-v1.7.3
 bash install.sh
 ```
 
@@ -290,3 +290,4 @@ or install Vita firmware, games, licenses, keys, or patches, and it does not fix
 Vita3K compatibility problems.
 
 See [SUPPORT.md](SUPPORT.md), [NOTICE.md](NOTICE.md), and [LICENSE](LICENSE).
+

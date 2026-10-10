@@ -4,7 +4,7 @@
 # Vita Launcher Manager public installer
 set -eu
 
-VERSION="1.7.2"
+VERSION="1.7.3"
 SRC_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 APP_DIR="/userdata/system/psvita_launcher"
 MARKER="$APP_DIR/.psvita-launcher-manager"
@@ -106,6 +106,18 @@ if [ -L "$APP_DIR" ]; then
     echo "ERROR: refusing to install into symlinked application directory: $APP_DIR" >&2
     exit 1
 fi
+
+# Reject symlinked child destinations before copying, rewriting, or chmodding.
+# Checking only the parent directory would still let a child point into Vita3K.
+for destination in "$MARKER" "$APP_DIR/psvita_launcher.py" \
+    "$APP_DIR/preupdate-gamelists-psvita-launcher-manager" \
+    "$APP_DIR/psvita_manager.sh" "$APP_DIR/HELP.txt" \
+    "$APP_DIR/config.ini" "$APP_DIR/config.ini.pre-v1.7.bak"; do
+    if [ -L "$destination" ]; then
+        echo "ERROR: refusing symlinked install destination: $destination" >&2
+        exit 1
+    fi
+done
 
 if [ -d "$APP_DIR" ] && [ -n "$(ls -A "$APP_DIR" 2>/dev/null || true)" ] && ! app_dir_is_ours; then
     echo "ERROR: $APP_DIR already exists and does not appear to belong to Vita Launcher Manager." >&2
@@ -270,4 +282,5 @@ else
 fi
 echo "Help:     $APP_DIR/HELP.txt"
 echo "Report:   $PYTHON_BIN -S $APP_DIR/psvita_launcher.py support-report"
+
 

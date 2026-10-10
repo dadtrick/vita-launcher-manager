@@ -23,13 +23,14 @@ import fcntl
 import os
 from pathlib import Path
 import re
+import stat
 import struct
 import sys
 import time
 from contextlib import contextmanager
 from typing import Dict, Iterable, Iterator, List, Optional, Tuple
 
-APP_VERSION = "1.7.2"
+APP_VERSION = "1.7.3"
 DEFAULT_VITA3K_ROOT = Path("/userdata/saves/psvita")
 DEFAULT_SOURCE = DEFAULT_VITA3K_ROOT / "ux0" / "app"
 DEFAULT_OUTPUT = Path("/userdata/roms/psvita")
@@ -674,6 +675,12 @@ def index_existing_launchers(output: Path, wanted_ids: Optional[set[str]] = None
                 except OSError:
                     continue
                 match = LAUNCHER_ID_RE.search(entry.name)
+                if match is None:
+                    # Batocera also accepts manually named launchers with the
+                    # ID elsewhere in the filename. Prefer our exact suffix,
+                    # then the rightmost ID so title text cannot take priority.
+                    matches = list(TITLE_ID_RE.finditer(entry.name))
+                    match = matches[-1] if matches else None
                 if not match:
                     continue
                 title_id = match.group(1).upper()
@@ -857,6 +864,7 @@ def cleanup_stale_managed_launchers(
     installed_ids: set[str],
     managed: Dict[str, str],
     dry_run: bool,
+    errors: Optional[List[str]] = None,
 ) -> Tuple[int, Dict[str, str]]:
     """Delete stale launchers conservatively.
 
@@ -864,7 +872,8 @@ def cleanup_stale_managed_launchers(
     file, absent from installed TITLE IDs, remain a regular non-symlink .psvita
     file, still contain the recorded TITLE ID, and still be zero bytes. If a
     tracked file was modified or replaced, ownership is relinquished instead of
-    deleting it.
+    deleting it. Inspection/deletion errors can be collected by the sync caller
+    while preserving the existing return contract and completing other work.
     """
     next_state = dict(managed)
     deleted = 0
@@ -884,7 +893,10 @@ def cleanup_stale_managed_launchers(
                 next_state.pop(title_id, None)
             continue
         except OSError as exc:
-            eprint(f"WARNING: cleanup could not inspect {path}: {exc}")
+            message = f"cleanup could not inspect {path}: {exc}"
+            eprint(f"ERROR: {message}")
+            if errors is not None:
+                errors.append(message)
             continue
 
         match = LAUNCHER_ID_RE.search(filename)
@@ -910,7 +922,10 @@ def cleanup_stale_managed_launchers(
             next_state.pop(title_id, None)
             deleted += 1
         except OSError as exc:
-            eprint(f"WARNING: could not delete stale launcher {path}: {exc}")
+            message = f"could not delete stale launcher {path}: {exc}"
+            eprint(f"ERROR: {message}")
+            if errors is not None:
+                errors.append(message)
 
     return deleted, next_state
 
@@ -987,8 +1002,20 @@ def sync_launchers(
             tracked_name = None
             tracked_path = None
 
-        if target.exists():
-            unchanged += 1
+        try:
+            target_stat = target.lstat()
+        except FileNotFoundError:
+            target_stat = None
+        except OSError as exc:
+            eprint(f"ERROR: could not inspect launcher path {target}: {exc}")
+            failed += 1
+            continue
+        if target_stat is not None:
+            if stat.S_ISREG(target_stat.st_mode):
+                unchanged += 1
+            else:
+                eprint(f"ERROR: launcher path exists but is not a regular non-symlink file: {target}")
+                failed += 1
             continue
 
         if current:
@@ -1033,9 +1060,11 @@ def sync_launchers(
 
     deleted = 0
     if cleanup_stale:
+        cleanup_errors: List[str] = []
         deleted, next_managed = cleanup_stale_managed_launchers(
-            output, wanted_ids, next_managed, dry_run
+            output, wanted_ids, next_managed, dry_run, errors=cleanup_errors
         )
+        failed += len(cleanup_errors)
 
     if not dry_run:
         write_unknown_log(unknown_log, unknown)
@@ -1046,9 +1075,9 @@ def sync_launchers(
 
     if dry_run:
         print(
-            f"Dry run complete: found={len(title_ids)}, would_create={created}, would_rename={renamed}, "
+            f"Dry run {'failed' if failed else 'complete'}: found={len(title_ids)}, would_create={created}, would_rename={renamed}, "
             f"would_delete={deleted}, unchanged={unchanged}, unmatched={len(unknown)}, "
-            f"sfo_cache_hits={cache_hits}, sfo_reads={sfo_reads}"
+            f"sfo_cache_hits={cache_hits}, sfo_reads={sfo_reads}, failed={failed}"
         )
     else:
         print(
@@ -1403,4 +1432,5 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
+
 
