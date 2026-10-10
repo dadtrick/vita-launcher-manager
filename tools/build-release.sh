@@ -1,4 +1,6 @@
 #!/bin/bash
+# Developed with ChatGPT / Codex AI assistance, directed by dadtrick.
+# See AI_DISCLOSURE.md at the repository root for attribution and test limits.
 set -eu
 ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 VERSION=$(grep -m1 '^APP_VERSION = ' "$ROOT/psvita_launcher.py" | cut -d'"' -f2)
@@ -17,7 +19,7 @@ done
 rm -rf "$ROOT/__pycache__" "$ROOT/tests/__pycache__"
 
 FILES=(
-  README.md HELP.txt LICENSE NOTICE.md CHANGELOG.md RELEASE_NOTES.md SUPPORT.md TROUBLESHOOTING.md VERSION .gitignore
+  README.md AI_DISCLOSURE.md HELP.txt LICENSE NOTICE.md CHANGELOG.md RELEASE_NOTES.md SUPPORT.md TROUBLESHOOTING.md VERSION .gitignore
   config.ini install.sh uninstall.sh psvita_launcher.py psvita_manager.sh
   psvita_manager_port.sh psvita-launcher-manager.desktop psvita_launcher_service
   preupdate-gamelists-psvita-launcher-manager assets tests .github tools

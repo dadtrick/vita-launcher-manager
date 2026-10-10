@@ -1,4 +1,6 @@
 #!/bin/bash
+# Developed with ChatGPT / Codex AI assistance, directed by dadtrick.
+# See AI_DISCLOSURE.md at the repository root for attribution and test limits.
 # PSVITA_LAUNCHER_MANAGER_SERVICE_V2
 # Batocera user service. It is not a daemon: start only registers the persistent
 # /userdata hook into Batocera's live EmulationStation hook directory.

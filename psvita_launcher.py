@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# Developed with ChatGPT / Codex AI assistance, directed by dadtrick.
+# See AI_DISCLOSURE.md at the repository root for attribution and test limits.
 """Batocera PS Vita .psvita launcher generator.
 
 Designed for Batocera v43 / Vita3K.  The program reads Vita3K's installed-app

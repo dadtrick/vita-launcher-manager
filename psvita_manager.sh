@@ -1,4 +1,6 @@
 #!/bin/bash
+# Developed with ChatGPT / Codex AI assistance, directed by dadtrick.
+# See AI_DISCLOSURE.md at the repository root for attribution and test limits.
 # PSVITA_LAUNCHER_MANAGER_GUI_V2
 # Lightweight on-demand YAD front end for Batocera PS Vita Launcher.
 # It never runs in the background and never writes to Vita3K storage.
