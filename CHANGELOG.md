@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.7.3 - Verification fixes
+
+- Failed stale-launcher inspection/deletion now returns an error and preserves retryable state.
+- Existing manually named launchers containing a TITLE ID are preserved, while generated suffix IDs keep priority.
+- Non-file collisions at canonical launcher paths fail safely instead of reporting success.
+- Installer refuses symlinked child destinations before writing or changing permissions.
+- Expanded regression coverage and rebuilt packages with current AI attribution.
+
 ## 1.7.2 - Sync and preview fixes
 
 - Failed launcher creation and renaming now report a failed sync while preserving successful partial work.
@@ -50,3 +58,4 @@
 
 - Hardened Vita3K read-only protection, legacy-watcher migration, filename
   length handling, and low-overhead `python3 -S` execution.
+

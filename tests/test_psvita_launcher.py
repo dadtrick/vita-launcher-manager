@@ -91,6 +91,69 @@ class LauncherTests(unittest.TestCase):
             self.assertTrue(old.exists())
             self.assertEqual(app.load_managed_state(state), {"PCSE00001": old.name})
 
+    def test_cleanup_failures_return_error_and_preserve_successful_work(self):
+        for operation, dry_run in (("delete", False), ("inspect", False), ("inspect", True)):
+            with self.subTest(operation=operation, dry_run=dry_run), tempfile.TemporaryDirectory() as td:
+                root = Path(td)
+                source, output = root / "source", root / "output"
+                (source / "PCSE00003").mkdir(parents=True)
+                output.mkdir()
+                failed_launcher = output / "Failed [PCSE00001].psvita"
+                removable_launcher = output / "Removable [PCSE00002].psvita"
+                modified_launcher = output / "Modified [PCSE00004].psvita"
+                unmanaged_launcher = output / "Manual [PCSE00005].psvita"
+                for launcher in (failed_launcher, removable_launcher, unmanaged_launcher):
+                    launcher.touch()
+                modified_launcher.write_text("user content", encoding="utf-8")
+                original_state = {
+                    "PCSE00001": failed_launcher.name,
+                    "PCSE00002": removable_launcher.name,
+                    "PCSE00004": modified_launcher.name,
+                }
+                state = root / "managed.tsv"
+                app.write_managed_state(state, original_state)
+                original_state_bytes = state.read_bytes()
+                config = root / "config.ini"
+                config.write_text(
+                    "[paths]\n"
+                    + "\n".join(f"{key} = {root / value}" for key, value in {
+                        "source": "source", "output": "output", "database": "db.tsv",
+                        "unknown_log": "unknown.txt", "lock_file": "lock",
+                        "managed_state": "managed.tsv", "title_cache": "cache.tsv",
+                    }.items()) + "\n", encoding="utf-8"
+                )
+                method_name = "unlink" if operation == "delete" else "stat"
+                original_method = getattr(Path, method_name)
+
+                def fail_one(path, *args, **kwargs):
+                    if path == failed_launcher:
+                        raise PermissionError(f"simulated {operation} denied")
+                    return original_method(path, *args, **kwargs)
+
+                argv = ["app", "sync", "--cleanup", "--config", str(config)]
+                if dry_run:
+                    argv.append("--dry-run")
+                stdout, stderr = io.StringIO(), io.StringIO()
+                with patch("sys.argv", argv), patch.object(Path, method_name, fail_one), \
+                        contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(stderr):
+                    result = app.main()
+                self.assertEqual(result, 2)
+                self.assertIn(f"simulated {operation} denied", stderr.getvalue())
+                self.assertIn("failed=1", stdout.getvalue())
+                self.assertIn("Dry run failed:" if dry_run else "Sync failed:", stdout.getvalue())
+                self.assertTrue(failed_launcher.exists())
+                self.assertTrue(unmanaged_launcher.exists())
+                self.assertEqual(modified_launcher.read_text(encoding="utf-8"), "user content")
+                if dry_run:
+                    self.assertTrue(removable_launcher.exists())
+                    self.assertEqual(state.read_bytes(), original_state_bytes)
+                    self.assertFalse(list(output.glob("*PCSE00003*.psvita")))
+                else:
+                    self.assertFalse(removable_launcher.exists())
+                    managed = app.load_managed_state(state)
+                    self.assertEqual(set(managed), {"PCSE00001", "PCSE00003"})
+                    self.assertTrue((output / managed["PCSE00003"]).exists())
+
     def test_dry_run_skips_database_update_and_preserves_launchers(self):
         with tempfile.TemporaryDirectory() as td:
             root = Path(td)
@@ -133,6 +196,61 @@ class LauncherTests(unittest.TestCase):
                                             root / "cache", False, False, True, False, False, True)
             self.assertEqual(result[3], 1)
             self.assertEqual(list(output.glob("*.psvita")), [])
+
+    def test_sync_preserves_manual_launcher_formats_without_creating_duplicates(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            source, output = root / "source", root / "output"
+            output.mkdir()
+            manual_names = {
+                "PCSE00001": "PCSE00001.psvita",
+                "PCSE00002": "User naming [PCSE00002] backup.psvita",
+                "PCSE00003": "Example [PCSB00002] PCSE00003 custom.psvita",
+            }
+            for title_id, filename in manual_names.items():
+                (source / title_id).mkdir(parents=True)
+                (output / filename).touch()
+            with contextlib.redirect_stdout(io.StringIO()):
+                result = app.sync_launchers(source, output, root / "db", root / "unknown", root / "state",
+                                            root / "cache", False, False, True, False, False, False)
+            self.assertEqual(result[:4], (3, 0, 0, 0))
+            self.assertEqual({path.name for path in output.iterdir()}, set(manual_names.values()))
+            self.assertEqual({title_id: paths[0].name for title_id, paths in
+                              app.index_existing_launchers(output).items()}, manual_names)
+            self.assertEqual(app.load_managed_state(root / "state"), {})
+
+    def test_canonical_launcher_collisions_fail_without_modifying_existing_paths(self):
+        for collision in ("directory", "broken symlink", "file symlink", "fifo"):
+            with self.subTest(collision=collision), tempfile.TemporaryDirectory() as td:
+                root = Path(td)
+                source, output = root / "source", root / "output"
+                (source / "PCSE00001").mkdir(parents=True)
+                output.mkdir()
+                target = output / app.canonical_launcher_name("PCSE00001", None, True)
+                reference = root / "reference"
+                if collision == "directory":
+                    target.mkdir()
+                elif collision == "fifo":
+                    os.mkfifo(target)
+                else:
+                    if collision == "file symlink":
+                        reference.write_text("preserve me", encoding="utf-8")
+                    target.symlink_to(reference)
+                before = target.lstat()
+                stdout, stderr = io.StringIO(), io.StringIO()
+                with contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(stderr), \
+                        self.assertRaisesRegex(RuntimeError, "1 launcher operation"):
+                    app.sync_launchers(source, output, root / "db", root / "unknown", root / "state",
+                                       root / "cache", False, False, True, False, False, False)
+                self.assertIn("Sync failed:", stdout.getvalue())
+                self.assertIn("failed=1", stdout.getvalue())
+                self.assertIn("not a regular non-symlink file", stderr.getvalue())
+                self.assertEqual((target.lstat().st_ino, target.lstat().st_mode),
+                                 (before.st_ino, before.st_mode))
+                self.assertEqual(app.index_existing_launchers(output), {})
+                self.assertEqual(app.load_managed_state(root / "state"), {})
+                if collision == "file symlink":
+                    self.assertEqual(reference.read_text(encoding="utf-8"), "preserve me")
 
     def test_long_unicode_filename_respects_name_max(self):
         name = "長いゲーム名™" * 100
@@ -261,4 +379,5 @@ class LauncherTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
 

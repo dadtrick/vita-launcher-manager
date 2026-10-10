@@ -32,11 +32,13 @@ cp -a "${FILES[@]}" "$tmp/$NAME/"
 (
   cd "$tmp/$NAME"
   find . -type f ! -name SHA256SUMS.txt -print0 | sort -z | xargs -0 sha256sum > SHA256SUMS.txt
+  sha256sum -c SHA256SUMS.txt >/dev/null
 )
 (
   cd "$tmp"
   zip -qr "$DIST/$NAME.zip" "$NAME"
 )
-(cd "$DIST" && sha256sum "$NAME.zip" > "$NAME.zip.sha256")
+(cd "$DIST" && sha256sum "$NAME.zip" > "$NAME.zip.sha256" && sha256sum -c "$NAME.zip.sha256")
 echo "Built: $DIST/$NAME.zip"
 cat "$DIST/$NAME.zip.sha256"
+
