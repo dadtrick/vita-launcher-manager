@@ -965,6 +965,7 @@ def sync_launchers(
     created = 0
     renamed = 0
     unchanged = 0
+    failed = 0
     unknown: List[str] = []
 
     for title_id in title_ids:
@@ -1004,7 +1005,9 @@ def sync_launchers(
                     renamed += 1
                     continue
                 except OSError as exc:
-                    eprint(f"WARNING: could not rename {old}: {exc}")
+                    eprint(f"ERROR: could not rename {old}: {exc}")
+                    failed += 1
+                    continue
             names = ", ".join(p.name for p in current)
             print(f"EXISTS: {title_id}: preserving existing launcher(s): {names}")
             unchanged += 1
@@ -1024,6 +1027,7 @@ def sync_launchers(
             unchanged += 1
         except OSError as exc:
             eprint(f"ERROR: could not create {target}: {exc}")
+            failed += 1
 
     deleted = 0
     if cleanup_stale:
@@ -1046,12 +1050,14 @@ def sync_launchers(
         )
     else:
         print(
-            f"Sync complete: found={len(title_ids)}, created={created}, renamed={renamed}, "
+            f"Sync {'failed' if failed else 'complete'}: found={len(title_ids)}, created={created}, renamed={renamed}, "
             f"deleted={deleted}, unchanged={unchanged}, unmatched={len(unknown)}, "
-            f"sfo_cache_hits={cache_hits}, sfo_reads={sfo_reads}"
+            f"sfo_cache_hits={cache_hits}, sfo_reads={sfo_reads}, failed={failed}"
         )
     if unknown:
         print(f"Unmatched TITLE IDs {'would be ' if dry_run else ''}recorded in: {unknown_log}")
+    if failed:
+        raise RuntimeError(f"{failed} launcher operation(s) failed; see errors above.")
     return len(title_ids), created, renamed, deleted, len(unknown)
 
 
@@ -1394,3 +1400,4 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
+
