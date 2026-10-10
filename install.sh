@@ -2,7 +2,7 @@
 # Vita Launcher Manager public installer
 set -eu
 
-VERSION="1.7.1"
+VERSION="1.7.2"
 SRC_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 APP_DIR="/userdata/system/psvita_launcher"
 MARKER="$APP_DIR/.psvita-launcher-manager"
@@ -268,3 +268,4 @@ else
 fi
 echo "Help:     $APP_DIR/HELP.txt"
 echo "Report:   $PYTHON_BIN -S $APP_DIR/psvita_launcher.py support-report"
+

@@ -27,7 +27,7 @@ import time
 from contextlib import contextmanager
 from typing import Dict, Iterable, Iterator, List, Optional, Tuple
 
-APP_VERSION = "1.7.1"
+APP_VERSION = "1.7.2"
 DEFAULT_VITA3K_ROOT = Path("/userdata/saves/psvita")
 DEFAULT_SOURCE = DEFAULT_VITA3K_ROOT / "ux0" / "app"
 DEFAULT_OUTPUT = Path("/userdata/roms/psvita")
@@ -50,7 +50,7 @@ USER_AGENT = f"Batocera-PSVita-Launcher/{APP_VERSION}"
 # Standard Vita application IDs are four ASCII letters followed by five digits.
 TITLE_ID_RE = re.compile(r"(?<![A-Z0-9])([A-Z]{4}[0-9]{5})(?![A-Z0-9])", re.I)
 ISSUE_TITLE_RE = re.compile(r"^(.*?)\s*\[([A-Z]{4}[0-9]{5})\]\s*$", re.I)
-LAUNCHER_ID_RE = re.compile(r"\[([A-Z]{4}[0-9]{5})\]", re.I)
+LAUNCHER_ID_RE = re.compile(r"\[([A-Z]{4}[0-9]{5})\]\.psvita$", re.I)
 
 REGION_PREFIXES = {
     "PCSA": "USA",
@@ -1376,7 +1376,8 @@ def main() -> int:
                 update_database(settings["db_path"])
                 return 0
 
-            maybe_update(settings)
+            if not args.dry_run:
+                maybe_update(settings)
             sync_launchers(
                 source=settings["source"],
                 output=settings["output"],
