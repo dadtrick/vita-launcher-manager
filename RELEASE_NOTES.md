@@ -6,7 +6,7 @@
 - Installer refuses symlinked child destinations before copying, rewriting, or chmodding files.
 - Includes the current AI disclosure, credits, tests, and package checksums.
 
-Validation: all 15 regression tests pass locally, with Python compilation, shell syntax checks, and release packaging. dadtrick's prior v1.7.2 Batocera 43.1 test confirmed 1,033 titles and no sync failures. The v1.7.3 patch still needs a hardware sync recheck after installation; cleanup failure cases were tested with isolated temporary files.
+Validation: all 15 regression tests pass locally, with Python compilation, shell syntax checks, and release packaging. dadtrick's prior v1.7.2 Batocera 43.1 test confirmed 1,033 titles and no sync failures. After the v1.7.3 release, dadtrick reported that the requested UPDATE GAMELISTS sync recheck worked on their existing system. No new diagnostic log or installed commit identifier was supplied for that recheck. Cleanup failure cases were tested with isolated temporary files.
 
 Extract the ZIP on Batocera and run `bash install.sh`. Existing configuration is preserved.
 
