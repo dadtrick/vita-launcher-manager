@@ -23,6 +23,11 @@ notices. Existing license terms are unchanged by these credits.
 
 v1.7.2 passed 11 automated tests and GitHub CI. Logs supplied by dadtrick confirm diagnostics and automatic UPDATE GAMELISTS syncing on Batocera 43.1 / Python 3.12.8 with 1,033 titles, 0 unmatched titles, failed=0, and exit=0. The supplied hands-on evidence does not cover every GUI action, cleanup deletion, failure scenario, or other hardware.
 
+After the v1.7.3 release and its 15 passing automated tests, dadtrick reported
+that the requested hardware sync recheck worked. This is a user-reported
+result, separate from the earlier logs; it does not establish every GUI action,
+cleanup scenario, or support for other hardware.
+
 ## Future changes
 
 When adding AI-generated work, keep this disclosure visible and identify material

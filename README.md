@@ -51,6 +51,12 @@ This confirms diagnostics and automatic hook syncing on this system. YAD was
 detected; GUI actions, deletion, and simulated failure cases were not part of
 this hands-on check. Automated tests cover the patch regression cases.
 
+For the subsequent **v1.7.3** patch, dadtrick reported that the requested
+**UPDATE GAMELISTS sync recheck worked** on their existing system. This is a
+hands-on result reported by the maintainer; no new diagnostic log or installed
+commit identifier was supplied for that recheck. The detailed 1,033-title counts
+above are from the earlier v1.7.2 report.
+
 ## Design and credits
 
 - **ChatGPT / Codex (OpenAI AI tools):** software design and code implementation, developed through collaboration with dadtrick.
