@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+- Use one documented atomic-write helper for database and state updates; remove unused title-resolution code.
+- Use named test options and shared fixtures so regression scenarios are easier to read.
+- Reformat installer Python and release scripts; check version agreement before creating archives.
+- Add contributor guidelines, editor/LF conventions, and Batocera compatibility notes.
+- Move detailed test history out of the README and run package builds on ordinary pull requests.
+
 ## 1.7.3 - Verification fixes
 
 - Failed stale-launcher inspection/deletion now returns an error and preserves retryable state.
@@ -58,4 +66,5 @@
 
 - Hardened Vita3K read-only protection, legacy-watcher migration, filename
   length handling, and low-overhead `python3 -S` execution.
+
 

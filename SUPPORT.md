@@ -1,7 +1,7 @@
 # Support policy
 
-This is a small, feature-complete community utility. There is no guaranteed
-support SLA or promise of ongoing releases.
+This community utility implements the documented launcher workflow. Bug reports
+and focused contributions are welcome; ongoing support is not guaranteed.
 
 ## Supported baseline
 
@@ -44,3 +44,4 @@ lines; it does not read game contents beyond the normal TITLE-ID/PARAM.SFO scan.
 
 The project intentionally fails conservatively when it cannot prove an operation
 is safe.
+

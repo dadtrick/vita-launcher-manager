@@ -73,16 +73,23 @@ fi
 # Uphold the read-only Vita3K guarantee during installation too. Resolve existing
 # symlinks before any mkdir/cp operation and reject destinations under Vita3K.
 if ! "$PYTHON_BIN" -S - "$PROTECTED_ROOT" "$APP_DIR" "$SERVICE" "$PORT_LAUNCHER" "$DESKTOP_ENTRY" <<'PYPATH'
-import os, sys
-protected=os.path.realpath(sys.argv[1])
-bad=[]
-for raw in sys.argv[2:]:
-    resolved=os.path.realpath(raw)
+import os
+import sys
+
+protected = os.path.realpath(sys.argv[1])
+invalid_destinations = []
+for path in sys.argv[2:]:
+    resolved = os.path.realpath(path)
     if resolved == protected or resolved.startswith(protected + os.sep):
-        bad.append((raw,resolved))
-if bad:
-    for raw,resolved in bad:
-        print(f"ERROR: install destination resolves inside protected Vita3K storage: {raw} -> {resolved}", file=sys.stderr)
+        invalid_destinations.append((path, resolved))
+
+if invalid_destinations:
+    for path, resolved in invalid_destinations:
+        print(
+            "ERROR: install destination resolves inside protected Vita3K storage: "
+            f"{path} -> {resolved}",
+            file=sys.stderr,
+        )
     raise SystemExit(1)
 PYPATH
 then
@@ -90,7 +97,8 @@ then
 fi
 
 file_has() {
-    file="$1"; marker="$2"
+    local file="$1"
+    local marker="$2"
     [ -f "$file" ] && grep -qF "$marker" "$file" 2>/dev/null
 }
 
@@ -112,6 +120,7 @@ fi
 for destination in "$MARKER" "$APP_DIR/psvita_launcher.py" \
     "$APP_DIR/preupdate-gamelists-psvita-launcher-manager" \
     "$APP_DIR/psvita_manager.sh" "$APP_DIR/HELP.txt" \
+    "$APP_DIR/LICENSE" "$APP_DIR/NOTICE.md" "$APP_DIR/AI_DISCLOSURE.md" \
     "$APP_DIR/config.ini" "$APP_DIR/config.ini.pre-v1.7.bak"; do
     if [ -L "$destination" ]; then
         echo "ERROR: refusing symlinked install destination: $destination" >&2
@@ -161,6 +170,11 @@ cp -f "$SRC_DIR/preupdate-gamelists-psvita-launcher-manager" "$APP_DIR/preupdate
 cp -f "$SRC_DIR/psvita_launcher_service" "$SERVICE"
 cp -f "$SRC_DIR/psvita_manager.sh" "$APP_DIR/psvita_manager.sh"
 [ -f "$SRC_DIR/HELP.txt" ] && cp -f "$SRC_DIR/HELP.txt" "$APP_DIR/HELP.txt"
+for document in LICENSE NOTICE.md AI_DISCLOSURE.md; do
+    if [ -f "$SRC_DIR/$document" ]; then
+        cp -f "$SRC_DIR/$document" "$APP_DIR/$document"
+    fi
+done
 
 # Preserve user config and merge missing keys. If an existing config is malformed,
 # leave its backup intact and fail with a precise message instead of rewriting it.
@@ -170,37 +184,51 @@ else
     echo "Keeping existing config: $APP_DIR/config.ini"
     cp -f "$APP_DIR/config.ini" "$APP_DIR/config.ini.pre-v1.7.bak"
     if ! "$PYTHON_BIN" -S - "$APP_DIR/config.ini" <<'PYCFG'
-import configparser, sys
+import configparser
 from pathlib import Path
-path=Path(sys.argv[1])
-cfg=configparser.ConfigParser()
+import sys
+
+path = Path(sys.argv[1])
+config = configparser.ConfigParser()
 try:
-    with path.open('r',encoding='utf-8') as fh:
-        cfg.read_file(fh)
-except Exception as exc:
-    print(f"ERROR: existing config is invalid: {exc}", file=sys.stderr)
+    with path.open("r", encoding="utf-8") as stream:
+        config.read_file(stream)
+except Exception as error:
+    print(f"ERROR: existing config is invalid: {error}", file=sys.stderr)
     raise SystemExit(1)
-for section in ('paths','behavior'):
-    if not cfg.has_section(section): cfg.add_section(section)
-path_defaults={
- 'source':'/userdata/saves/psvita/ux0/app',
- 'output':'/userdata/roms/psvita',
- 'database':'/userdata/system/psvita_launcher/title_ids.tsv',
- 'unknown_log':'/userdata/system/psvita_launcher/unmatched_title_ids.txt',
- 'lock_file':'/userdata/system/psvita_launcher/psvita_launcher.lock',
- 'managed_state':'/userdata/system/psvita_launcher/managed_launchers.tsv',
- 'title_cache':'/userdata/system/psvita_launcher/title_cache.tsv',
+
+for section in ("paths", "behavior"):
+    if not config.has_section(section):
+        config.add_section(section)
+
+path_defaults = {
+    "source": "/userdata/saves/psvita/ux0/app",
+    "output": "/userdata/roms/psvita",
+    "database": "/userdata/system/psvita_launcher/title_ids.tsv",
+    "unknown_log": "/userdata/system/psvita_launcher/unmatched_title_ids.txt",
+    "lock_file": "/userdata/system/psvita_launcher/psvita_launcher.lock",
+    "managed_state": "/userdata/system/psvita_launcher/managed_launchers.tsv",
+    "title_cache": "/userdata/system/psvita_launcher/title_cache.tsv",
 }
-behavior_defaults={
- 'recursive':'false','auto_update_database':'false','db_max_age_days':'30',
- 'rename_existing_launchers':'false','cleanup_stale_launchers':'false',
- 'include_region':'true','prefer_local_sfo':'true','cache_local_sfo':'true',
+behavior_defaults = {
+    "recursive": "false",
+    "auto_update_database": "false",
+    "db_max_age_days": "30",
+    "rename_existing_launchers": "false",
+    "cleanup_stale_launchers": "false",
+    "include_region": "true",
+    "prefer_local_sfo": "true",
+    "cache_local_sfo": "true",
 }
-for k,v in path_defaults.items():
-    if not cfg.has_option('paths',k): cfg.set('paths',k,v)
-for k,v in behavior_defaults.items():
-    if not cfg.has_option('behavior',k): cfg.set('behavior',k,v)
-with path.open('w',encoding='utf-8') as fh: cfg.write(fh)
+for key, value in path_defaults.items():
+    if not config.has_option("paths", key):
+        config.set("paths", key, value)
+for key, value in behavior_defaults.items():
+    if not config.has_option("behavior", key):
+        config.set("behavior", key, value)
+
+with path.open("w", encoding="utf-8") as stream:
+    config.write(stream)
 PYCFG
     then
         echo "ERROR: Could not migrate config. Original backup: $APP_DIR/config.ini.pre-v1.7.bak" >&2
@@ -282,5 +310,3 @@ else
 fi
 echo "Help:     $APP_DIR/HELP.txt"
 echo "Report:   $PYTHON_BIN -S $APP_DIR/psvita_launcher.py support-report"
-
-

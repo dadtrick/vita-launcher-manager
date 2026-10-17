@@ -11,7 +11,10 @@ SOURCE = Path(__file__).resolve().parents[1]
 
 class InstallerTests(unittest.TestCase):
     def test_symlinked_child_destination_cannot_overwrite_vita3k_data(self):
-        for filename in ('psvita_launcher.py', 'config.ini', 'HELP.txt', '.psvita-launcher-manager'):
+        for filename in (
+            'psvita_launcher.py', 'config.ini', 'HELP.txt', '.psvita-launcher-manager',
+            'LICENSE', 'NOTICE.md', 'AI_DISCLOSURE.md',
+        ):
             with self.subTest(filename=filename), tempfile.TemporaryDirectory() as td:
                 root = Path(td)
                 userdata = root / 'userdata'
@@ -50,3 +53,4 @@ class InstallerTests(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+

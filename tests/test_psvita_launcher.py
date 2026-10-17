@@ -1,21 +1,44 @@
 # Developed with ChatGPT / Codex AI assistance, directed by dadtrick.
 # See AI_DISCLOSURE.md at the repository root for attribution and test limits.
-import csv
+import configparser
 import contextlib
-import io
+import datetime as dt
 import importlib.util
+import io
 import os
-from pathlib import Path
+import shutil
 import struct
 import tempfile
 import unittest
-from unittest.mock import patch
 import urllib.parse
+from pathlib import Path
+from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[1]
 spec = importlib.util.spec_from_file_location("psvita_launcher", ROOT / "psvita_launcher.py")
 app = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(app)
+
+
+def write_test_config(root: Path, *, auto_update_database: bool = False) -> Path:
+    config = configparser.ConfigParser()
+    config["paths"] = {
+        key: str(root / filename)
+        for key, filename in {
+            "source": "source",
+            "output": "output",
+            "database": "db.tsv",
+            "unknown_log": "unknown.txt",
+            "lock_file": "lock",
+            "managed_state": "managed.tsv",
+            "title_cache": "cache.tsv",
+        }.items()
+    }
+    config["behavior"] = {"auto_update_database": str(auto_update_database).lower()}
+    path = root / "config.ini"
+    with path.open("w", encoding="utf-8") as stream:
+        config.write(stream)
+    return path
 
 
 def make_sfo(title_id: str, title: str) -> bytes:
@@ -44,15 +67,7 @@ class LauncherTests(unittest.TestCase):
             source = root / "source"
             for title_id in ("PCSE00001", "PCSE00002"):
                 (source / title_id).mkdir(parents=True)
-            config = root / "config.ini"
-            config.write_text(
-                "[paths]\n"
-                + "\n".join(f"{key} = {root / value}" for key, value in {
-                    "source": "source", "output": "output", "database": "db.tsv",
-                    "unknown_log": "unknown.txt", "lock_file": "lock",
-                    "managed_state": "managed.tsv", "title_cache": "cache.tsv",
-                }.items()) + "\n", encoding="utf-8"
-            )
+            config = write_test_config(root)
             original_touch = Path.touch
 
             def fail_one(path, *args, **kwargs):
@@ -86,8 +101,20 @@ class LauncherTests(unittest.TestCase):
             with patch.object(Path, "rename", side_effect=OSError("simulated permission denied")), \
                     contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()), \
                     self.assertRaisesRegex(RuntimeError, "1 launcher operation"):
-                app.sync_launchers(source, output, root / "db", root / "unknown", state,
-                                   root / "cache", False, True, True, False, False, False)
+                app.sync_launchers(
+                    source=source,
+                    output=output,
+                    db_path=root / "db",
+                    unknown_log=root / "unknown",
+                    managed_state_path=state,
+                    title_cache_path=root / "cache",
+                    recursive=False,
+                    rename_existing=True,
+                    include_region=True,
+                    prefer_local_sfo=False,
+                    cache_local_sfo=False,
+                    cleanup_stale=False,
+                )
             self.assertTrue(old.exists())
             self.assertEqual(app.load_managed_state(state), {"PCSE00001": old.name})
 
@@ -113,15 +140,7 @@ class LauncherTests(unittest.TestCase):
                 state = root / "managed.tsv"
                 app.write_managed_state(state, original_state)
                 original_state_bytes = state.read_bytes()
-                config = root / "config.ini"
-                config.write_text(
-                    "[paths]\n"
-                    + "\n".join(f"{key} = {root / value}" for key, value in {
-                        "source": "source", "output": "output", "database": "db.tsv",
-                        "unknown_log": "unknown.txt", "lock_file": "lock",
-                        "managed_state": "managed.tsv", "title_cache": "cache.tsv",
-                    }.items()) + "\n", encoding="utf-8"
-                )
+                config = write_test_config(root)
                 method_name = "unlink" if operation == "delete" else "stat"
                 original_method = getattr(Path, method_name)
 
@@ -159,20 +178,13 @@ class LauncherTests(unittest.TestCase):
             root = Path(td)
             source = root / "source"
             (source / "PCSE00001").mkdir(parents=True)
-            config = root / "config.ini"
-            config.write_text(
-                "[paths]\n" + "\n".join(f"{key} = {root / value}" for key, value in {
-                    "source": "source", "output": "output", "database": "db.tsv",
-                    "unknown_log": "unknown", "lock_file": "lock",
-                    "managed_state": "managed", "title_cache": "cache",
-                }.items()) + "\n[behavior]\nauto_update_database = true\n", encoding="utf-8"
-            )
+            config = write_test_config(root, auto_update_database=True)
             with patch("sys.argv", ["app", "sync", "--dry-run", "--config", str(config)]), \
                     patch.object(app, "update_database") as update, \
                     contextlib.redirect_stdout(io.StringIO()):
                 self.assertEqual(app.main(), 0)
             update.assert_not_called()
-            for name in ("output", "db.tsv", "unknown", "managed", "cache"):
+            for name in ("output", "db.tsv", "unknown.txt", "managed.tsv", "cache.tsv"):
                 self.assertFalse((root / name).exists())
 
     def test_bracketed_title_id_in_name_preserves_tracking_and_cleanup(self):
@@ -185,15 +197,39 @@ class LauncherTests(unittest.TestCase):
             database.write_text("PCSE00001\tExample [PCSB00002]\n", encoding="utf-8")
             state = root / "managed.tsv"
             with contextlib.redirect_stdout(io.StringIO()):
-                app.sync_launchers(source, output, database, root / "unknown", state,
-                                   root / "cache", False, False, True, False, False, False)
+                app.sync_launchers(
+                    source=source,
+                    output=output,
+                    db_path=database,
+                    unknown_log=root / "unknown",
+                    managed_state_path=state,
+                    title_cache_path=root / "cache",
+                    recursive=False,
+                    rename_existing=False,
+                    include_region=True,
+                    prefer_local_sfo=False,
+                    cache_local_sfo=False,
+                    cleanup_stale=False,
+                )
             self.assertEqual(set(app.index_existing_launchers(output)), {"PCSE00001"})
             managed = app.load_managed_state(state)
             self.assertEqual(set(managed), {"PCSE00001"})
             game.rmdir()
             with contextlib.redirect_stdout(io.StringIO()):
-                result = app.sync_launchers(source, output, database, root / "unknown", state,
-                                            root / "cache", False, False, True, False, False, True)
+                result = app.sync_launchers(
+                    source=source,
+                    output=output,
+                    db_path=database,
+                    unknown_log=root / "unknown",
+                    managed_state_path=state,
+                    title_cache_path=root / "cache",
+                    recursive=False,
+                    rename_existing=False,
+                    include_region=True,
+                    prefer_local_sfo=False,
+                    cache_local_sfo=False,
+                    cleanup_stale=True,
+                )
             self.assertEqual(result[3], 1)
             self.assertEqual(list(output.glob("*.psvita")), [])
 
@@ -211,8 +247,20 @@ class LauncherTests(unittest.TestCase):
                 (source / title_id).mkdir(parents=True)
                 (output / filename).touch()
             with contextlib.redirect_stdout(io.StringIO()):
-                result = app.sync_launchers(source, output, root / "db", root / "unknown", root / "state",
-                                            root / "cache", False, False, True, False, False, False)
+                result = app.sync_launchers(
+                    source=source,
+                    output=output,
+                    db_path=root / "db",
+                    unknown_log=root / "unknown",
+                    managed_state_path=root / "state",
+                    title_cache_path=root / "cache",
+                    recursive=False,
+                    rename_existing=False,
+                    include_region=True,
+                    prefer_local_sfo=False,
+                    cache_local_sfo=False,
+                    cleanup_stale=False,
+                )
             self.assertEqual(result[:4], (3, 0, 0, 0))
             self.assertEqual({path.name for path in output.iterdir()}, set(manual_names.values()))
             self.assertEqual({title_id: paths[0].name for title_id, paths in
@@ -240,8 +288,20 @@ class LauncherTests(unittest.TestCase):
                 stdout, stderr = io.StringIO(), io.StringIO()
                 with contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(stderr), \
                         self.assertRaisesRegex(RuntimeError, "1 launcher operation"):
-                    app.sync_launchers(source, output, root / "db", root / "unknown", root / "state",
-                                       root / "cache", False, False, True, False, False, False)
+                    app.sync_launchers(
+                        source=source,
+                        output=output,
+                        db_path=root / "db",
+                        unknown_log=root / "unknown",
+                        managed_state_path=root / "state",
+                        title_cache_path=root / "cache",
+                        recursive=False,
+                        rename_existing=False,
+                        include_region=True,
+                        prefer_local_sfo=False,
+                        cache_local_sfo=False,
+                        cleanup_stale=False,
+                    )
                 self.assertIn("Sync failed:", stdout.getvalue())
                 self.assertIn("failed=1", stdout.getvalue())
                 self.assertIn("not a regular non-symlink file", stderr.getvalue())
@@ -268,6 +328,18 @@ class LauncherTests(unittest.TestCase):
             p.write_bytes(b"X" * (app.MAX_SFO_BYTES + 1))
             self.assertEqual(app.parse_sfo(p), {})
 
+    def test_failed_state_write_preserves_previous_file_and_removes_temporary_file(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            state = root / "managed.tsv"
+            original = b"PCSE00001\tOriginal [PCSE00001].psvita\n"
+            state.write_bytes(original)
+            with patch.object(app.csv, "writer", side_effect=OSError("simulated write failure")), \
+                    self.assertRaisesRegex(OSError, "simulated write failure"):
+                app.write_managed_state(state, {"PCSE00002": "New [PCSE00002].psvita"})
+            self.assertEqual(state.read_bytes(), original)
+            self.assertEqual(list(root.iterdir()), [state])
+
     def test_sync_cache_and_managed_cleanup(self):
         with tempfile.TemporaryDirectory() as td:
             root = Path(td)
@@ -282,28 +354,36 @@ class LauncherTests(unittest.TestCase):
                 sfo.parent.mkdir(parents=True, exist_ok=True)
                 sfo.write_bytes(make_sfo(tid, title))
 
-            result = app.sync_launchers(source, output, db, unknown, state, cache,
-                                        False, False, True, True, True, False, False)
+            sync_options = {
+                "source": source,
+                "output": output,
+                "db_path": db,
+                "unknown_log": unknown,
+                "managed_state_path": state,
+                "title_cache_path": cache,
+                "recursive": False,
+                "rename_existing": False,
+                "include_region": True,
+                "prefer_local_sfo": True,
+                "cache_local_sfo": True,
+            }
+            result = app.sync_launchers(**sync_options, cleanup_stale=False)
             self.assertEqual(result[:2], (2, 2))
             launchers = list(output.glob("*.psvita"))
             self.assertEqual(len(launchers), 2)
             self.assertTrue(all(p.stat().st_size == 0 for p in launchers))
 
-            result2 = app.sync_launchers(source, output, db, unknown, state, cache,
-                                         False, False, True, True, True, False, False)
+            result2 = app.sync_launchers(**sync_options, cleanup_stale=False)
             self.assertEqual(result2[1], 0)
 
             # Remove one installed title and preview cleanup: no file is deleted.
-            import shutil
             shutil.rmtree(source / "PCSE00002")
             before = set(p.name for p in output.glob("*.psvita"))
-            app.sync_launchers(source, output, db, unknown, state, cache,
-                               False, False, True, True, True, True, True)
+            app.sync_launchers(**sync_options, cleanup_stale=True, dry_run=True)
             self.assertEqual(before, set(p.name for p in output.glob("*.psvita")))
 
             # Confirm cleanup removes only the managed stale launcher.
-            app.sync_launchers(source, output, db, unknown, state, cache,
-                               False, False, True, True, True, True, False)
+            app.sync_launchers(**sync_options, cleanup_stale=True)
             remaining = list(output.glob("*.psvita"))
             self.assertEqual(len(remaining), 1)
             self.assertIn("PCSE00001", remaining[0].name)
@@ -347,7 +427,6 @@ class LauncherTests(unittest.TestCase):
         # Simulate 2,505 open compatibility issues while refusing page > 10.
         issues = []
         base = 1_700_000_000
-        import datetime as dt
         for i in range(2505):
             stamp = dt.datetime.fromtimestamp(base + i, tz=dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
             issues.append({"number": i + 1, "updated_at": stamp,
@@ -364,20 +443,14 @@ class LauncherTests(unittest.TestCase):
             start = (page - 1) * 100
             return rows[start:start+100], {}
 
-        old = app.request_json
-        app.request_json = fake_request
-        try:
-            with tempfile.TemporaryDirectory() as td:
-                db = Path(td) / "titles.tsv"
-                count = app.update_database(db)
-                # IDs intentionally repeat modulo 100000 only after 100k rows; all 2505 unique here.
-                self.assertEqual(count, 2505)
-                self.assertTrue(db.exists())
-        finally:
-            app.request_json = old
+        with patch.object(app, "request_json", side_effect=fake_request), \
+                tempfile.TemporaryDirectory() as td:
+            db = Path(td) / "titles.tsv"
+            count = app.update_database(db)
+            self.assertEqual(count, 2505)
+            self.assertTrue(db.exists())
 
 
 if __name__ == "__main__":
     unittest.main()
-
 

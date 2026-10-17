@@ -28,7 +28,7 @@ import struct
 import sys
 import time
 from contextlib import contextmanager
-from typing import Dict, Iterable, Iterator, List, Optional, Tuple
+from typing import Dict, Iterator, List, Optional, TextIO, Tuple
 
 APP_VERSION = "1.7.3"
 DEFAULT_VITA3K_ROOT = Path("/userdata/saves/psvita")
@@ -250,6 +250,26 @@ def exclusive_lock(path: Path, timeout_seconds: float = 5.0) -> Iterator[None]:
             fcntl.flock(fh.fileno(), fcntl.LOCK_UN)
 
 
+@contextmanager
+def atomic_text_writer(path: Path) -> Iterator[TextIO]:
+    """Create parents, write a temporary sibling, and clean up on every exit.
+
+    Replace the destination only after the caller finishes writing successfully,
+    so a failed write leaves the previous database or state file intact.
+    """
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temporary = path.with_name(f".{path.name}.tmp.{os.getpid()}")
+    try:
+        with temporary.open("w", encoding="utf-8", newline="") as stream:
+            yield stream
+        temporary.replace(path)
+    finally:
+        try:
+            temporary.unlink()
+        except FileNotFoundError:
+            pass
+
+
 def _readonly_open_flags(directory: bool = False) -> int:
     """Flags for best-effort read access without changing source atime."""
     flags = os.O_RDONLY | getattr(os, "O_CLOEXEC", 0) | getattr(os, "O_NOATIME", 0)
@@ -446,29 +466,21 @@ def update_database(db_path: Path) -> int:
     if not entries:
         raise RuntimeError("No valid TITLE IDs were parsed; existing database was left untouched.")
 
-    db_path.parent.mkdir(parents=True, exist_ok=True)
-    temp_path = db_path.with_name(f".{db_path.name}.tmp.{os.getpid()}")
     generated_at = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
-    try:
-        with temp_path.open("w", encoding="utf-8", newline="") as fh:
-            fh.write("# Batocera PS Vita TITLE ID map\n")
-            fh.write("# Source: Vita3K/compatibility open GitHub issues\n")
-            fh.write(f"# Generated: {generated_at}\n")
-            fh.write("# TITLE_ID\tGAME_NAME\tREGION\n")
-            writer = csv.writer(fh, delimiter="\t", lineterminator="\n")
-            for title_id in sorted(entries):
-                writer.writerow([title_id, entries[title_id], infer_region(title_id)])
-        temp_path.replace(db_path)
-    finally:
-        try:
-            temp_path.unlink()
-        except FileNotFoundError:
-            pass
+    with atomic_text_writer(db_path) as stream:
+        stream.write("# Batocera PS Vita TITLE ID map\n")
+        stream.write("# Source: Vita3K/compatibility open GitHub issues\n")
+        stream.write(f"# Generated: {generated_at}\n")
+        stream.write("# TITLE_ID\tGAME_NAME\tREGION\n")
+        writer = csv.writer(stream, delimiter="\t", lineterminator="\n")
+        for title_id in sorted(entries):
+            writer.writerow([title_id, entries[title_id], infer_region(title_id)])
 
     print(f"Database written: {db_path}")
     print(f"TITLE IDs stored: {len(entries)}")
     print(f"GitHub rows examined: {total_api_rows}; unique issues: {len(seen_issue_numbers)}")
     return len(entries)
+
 
 def load_database(db_path: Path, wanted_ids: Optional[set[str]] = None) -> Dict[str, str]:
     """Load only the TITLE IDs needed for this sync when a filter is supplied."""
@@ -613,24 +625,6 @@ def parse_sfo(path: Path) -> Dict[str, object]:
     return result
 
 
-def local_sfo_title(entry_path: Path, is_directory: bool, title_id: str) -> Optional[str]:
-    """Return TITLE from an installed Vita3K app without rescanning its parent."""
-    if not is_directory:
-        return None
-    sfo_path = entry_path / "sce_sys" / "param.sfo"
-    if not sfo_path.is_file():
-        return None
-    meta = parse_sfo(sfo_path)
-    embedded_id = str(meta.get("TITLE_ID", "")).strip().upper()
-    if embedded_id and embedded_id != title_id:
-        return None
-    for key in ("TITLE", "STITLE"):
-        value = meta.get(key)
-        if isinstance(value, str) and value.strip():
-            return sanitize_name(value.strip())
-    return None
-
-
 def canonical_launcher_name(
     title_id: str,
     game_name: Optional[str],
@@ -693,25 +687,17 @@ def index_existing_launchers(output: Path, wanted_ids: Optional[set[str]] = None
 
 
 def write_unknown_log(path: Path, unknown: List[str]) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
     if not unknown:
+        path.parent.mkdir(parents=True, exist_ok=True)
         try:
             path.unlink()
         except FileNotFoundError:
             pass
         return
-    temp = path.with_name(f".{path.name}.tmp.{os.getpid()}")
-    try:
-        with temp.open("w", encoding="utf-8") as fh:
-            fh.write("# TITLE IDs found locally but unresolved by local SFO or the current database.\n")
-            for title_id in unknown:
-                fh.write(title_id + "\n")
-        temp.replace(path)
-    finally:
-        try:
-            temp.unlink()
-        except FileNotFoundError:
-            pass
+    with atomic_text_writer(path) as stream:
+        stream.write("# TITLE IDs found locally but unresolved by local SFO or the current database.\n")
+        for title_id in unknown:
+            stream.write(title_id + "\n")
 
 
 def load_title_cache(path: Path) -> Dict[str, Tuple[int, int, str]]:
@@ -744,22 +730,13 @@ def load_title_cache(path: Path) -> Dict[str, Tuple[int, int, str]]:
 
 
 def write_title_cache(path: Path, cache: Dict[str, Tuple[int, int, str]]) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    temp = path.with_name(f".{path.name}.tmp.{os.getpid()}")
-    try:
-        with temp.open("w", encoding="utf-8", newline="") as fh:
-            fh.write("# Local Vita3K PARAM.SFO title cache; safe to delete.\n")
-            fh.write("# TITLE_ID\tMTIME_NS\tSIZE\tTITLE\n")
-            writer = csv.writer(fh, delimiter="\t", lineterminator="\n")
-            for title_id in sorted(cache):
-                mtime_ns, size, title = cache[title_id]
-                writer.writerow([title_id, mtime_ns, size, title])
-        temp.replace(path)
-    finally:
-        try:
-            temp.unlink()
-        except FileNotFoundError:
-            pass
+    with atomic_text_writer(path) as stream:
+        stream.write("# Local Vita3K PARAM.SFO title cache; safe to delete.\n")
+        stream.write("# TITLE_ID\tMTIME_NS\tSIZE\tTITLE\n")
+        writer = csv.writer(stream, delimiter="\t", lineterminator="\n")
+        for title_id in sorted(cache):
+            mtime_ns, size, title = cache[title_id]
+            writer.writerow([title_id, mtime_ns, size, title])
 
 
 def resolve_local_titles(
@@ -841,22 +818,13 @@ def load_managed_state(path: Path) -> Dict[str, str]:
 
 
 def write_managed_state(path: Path, state: Dict[str, str]) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    temp = path.with_name(f".{path.name}.tmp.{os.getpid()}")
-    try:
-        with temp.open("w", encoding="utf-8", newline="") as fh:
-            fh.write("# Launchers created by Batocera PS Vita Launcher.\n")
-            fh.write("# Only these files are eligible for opt-in stale cleanup.\n")
-            fh.write("# TITLE_ID\tFILENAME\n")
-            writer = csv.writer(fh, delimiter="\t", lineterminator="\n")
-            for title_id in sorted(state):
-                writer.writerow([title_id, state[title_id]])
-        temp.replace(path)
-    finally:
-        try:
-            temp.unlink()
-        except FileNotFoundError:
-            pass
+    with atomic_text_writer(path) as stream:
+        stream.write("# Launchers created by Batocera PS Vita Launcher.\n")
+        stream.write("# Only these files are eligible for opt-in stale cleanup.\n")
+        stream.write("# TITLE_ID\tFILENAME\n")
+        writer = csv.writer(stream, delimiter="\t", lineterminator="\n")
+        for title_id in sorted(state):
+            writer.writerow([title_id, state[title_id]])
 
 
 def cleanup_stale_managed_launchers(
@@ -1432,5 +1400,6 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
+
 
 
