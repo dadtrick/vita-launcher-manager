@@ -2,7 +2,6 @@ name: Release
 
 on:
   pull_request:
-    paths: [VERSION, .github/workflows/release.yml]
   push:
     branches: [main]
     paths: [VERSION]
@@ -53,3 +52,4 @@ jobs:
             --title "Vita Launcher Manager v$version" --notes-file RELEASE_NOTES.md \
             "dist/vita-launcher-manager-v$version.zip" \
             "dist/vita-launcher-manager-v$version.zip.sha256"
+

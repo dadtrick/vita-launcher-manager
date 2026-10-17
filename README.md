@@ -7,14 +7,11 @@ EmulationStation expects for games already installed in Vita3K.
 
 ## AI development disclosure
 
-This project was developed with **ChatGPT / Codex, OpenAI's AI tools**, for
-software design, code generation, debugging, and documentation.
-**dadtrick** supplied the original need and idea, directed the project, invested
-the time, and performed hands-on testing. The code is presented openly as
-AI-developed work; the repository owner's name does not mean every line was
-written by hand.
+Developed by dadtrick using **ChatGPT / Codex (OpenAI AI tools)** for software
+design, generated code, debugging, and documentation. dadtrick provided the
+idea, requirements, project direction, and hands-on testing.
 
-See [AI_DISCLOSURE.md](AI_DISCLOSURE.md) for attribution and validation limits.
+See [AI_DISCLOSURE.md](AI_DISCLOSURE.md) for attribution and test limits.
 
 The project is designed around Batocera's documented Vita workflow:
 
@@ -35,32 +32,23 @@ Tested baseline: **Batocera v43, x86_64**. Batocera currently documents Vita3K
 as x86_64-only. The installer also checks the actual services and gamelist-hook
 capabilities it needs, so later Batocera versions may work without modification.
 
-### Verified on dadtrick's system
+### Tested behavior
 
-Vita Launcher Manager **v1.7.2** was tested on **Batocera 43.1** with
-**Python 3.12.8**. The supplied support report showed **0 errors and 0 warnings**,
-an active gamelist hook, and YAD available.
+On dadtrick's Batocera 43.1 system, the v1.7.2 logs show 1,033 installed titles
+and 1,033 launchers, with no unmatched titles or sync failures. dadtrick later
+reported a successful v1.7.3 UPDATE GAMELISTS recheck. These results cover one
+system; see [the test record](docs/TESTING.md) for versions, evidence, and limits.
 
-After running **GAME SETTINGS -> UPDATE GAMELISTS** in EmulationStation, the
-live hook successfully synced **1,033 installed titles** with **1,033 launchers**,
-**0 unmatched titles**, and **0 failures**. The repeat sync used **1,033 cache
-hits** and **0 SFO reads**, preserved existing launcher names, and recorded
-`exit=0` / `sync completed` in the log and last-sync status file.
+## How it fits into Batocera
 
-This confirms diagnostics and automatic hook syncing on this system. YAD was
-detected; GUI actions, deletion, and simulated failure cases were not part of
-this hands-on check. Automated tests cover the patch regression cases.
+Vita3K installs the games. This utility reads their metadata and creates the
+launcher files Batocera expects. A Batocera user service registers the gamelist
+hook, which runs once per UPDATE GAMELISTS action. The optional YAD manager
+calls the same command-line backend.
 
-For the subsequent **v1.7.3** patch, dadtrick reported that the requested
-**UPDATE GAMELISTS sync recheck worked** on their existing system. This is a
-hands-on result reported by the maintainer; no new diagnostic log or installed
-commit identifier was supplied for that recheck. The detailed 1,033-title counts
-above are from the earlier v1.7.2 report.
-
-## Design and credits
-
-- **ChatGPT / Codex (OpenAI AI tools):** software design and code implementation, developed through collaboration with dadtrick.
-- **dadtrick:** original idea, project direction, time invested, and hands-on testing on their Batocera system.
+The [integration notes](docs/INTEGRATION.md) describe the stable paths, CLI,
+configuration, and state formats. [CONTRIBUTING.md](CONTRIBUTING.md) explains
+how to change and test the code.
 
 ## Why use it?
 
@@ -129,8 +117,8 @@ Optional GUI:
 - YAD/GTK. The installer only creates GUI shortcuts when `yad` is actually
   available.
 
-Internet access is **not required for installation or normal syncing**. Normal syncing is offline by default. Network access is used for **Update
-Database**, or during sync if `auto_update_database` is explicitly enabled.
+Installation and normal syncing work offline. Network access is used for
+**Update Database**, or during sync if `auto_update_database` is enabled.
 
 ## Install
 
@@ -296,4 +284,4 @@ or install Vita firmware, games, licenses, keys, or patches, and it does not fix
 Vita3K compatibility problems.
 
 See [SUPPORT.md](SUPPORT.md), [NOTICE.md](NOTICE.md), and [LICENSE](LICENSE).
-
+For changes and design decisions, start with [CONTRIBUTING.md](CONTRIBUTING.md).
